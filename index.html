@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>App Zonas PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+<style>
+body { margin:0; font-family: Arial; }
+#map { height:100vh; }
+
+.info {
+    position: absolute;
+    bottom: 15px;
+    left: 10px;
+    background: white;
+    padding: 12px;
+    border-radius: 10px;
+    z-index: 999;
+}
+
+.btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: #007bff;
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+    z-index: 999;
+    cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+<div class="info" id="info">📡 Detectando ubicación...</div>
+<div class="btn" onclick="usarGPS()">📍 Mi ubicación</div>
+
+<script>
+
+var map = L.map('map').setView([0.3504347857430742, -78.2538062675516], 12);
+
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+var capa;
+var marcador = null;
+
+// cargar mapa
+fetch('mapa_ligero.geojson')
+.then(res => res.json())
+.then(data => {
+
+    capa = L.geoJSON(data, {
+        style: {
+            color: 'blue',
+            weight: 2,
+            fillOpacity: 0.3
+        }
+    }).addTo(map);
+
+    usarGPS();
+});
+
+// GPS
+function usarGPS(){
+    navigator.geolocation.getCurrentPosition(function(pos){
+        evaluar(pos.coords.latitude, pos.coords.longitude);
+    });
+}
+
+// evaluar punto
+function evaluar(lat, lon){
+
+    var punto = turf.point([lon, lat]);
+    var mensaje = "❌ Fuera de polígonos";
+
+    capa.eachLayer(function(layer){
+
+        var dentro = turf.booleanPointInPolygon(punto, layer.feature);
+
+        if(dentro){
+            let p = layer.feature.properties;
+
+            mensaje = `
+            📍 ZONA: ${p.ZONA}<br>
+            📍 SECTOR: ${p.SECTOR}<br>
+            📊 POTENCIAL: ${p.Potencial_}
+            `;
+
+            layer.setStyle({
+                color: 'red',
+                weight: 4,
+                fillOpacity: 0.6
+            });
+
+        } else {
+            layer.setStyle({
+                color: 'blue',
+                weight: 2,
+                fillOpacity: 0.3
+            });
+        }
+    });
+
+    document.getElementById("info").innerHTML = mensaje;
+
+    if (marcador) map.removeLayer(marcador);
+
+    marcador = L.marker([lat, lon]).addTo(map);
+
+    map.setView([lat, lon], 15);
+}
+
+</script>
+</body>
+</html>
