@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>App Zonas PRO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+<style>
+body { margin:0; }
+#map { height:100vh; }
+
+#info {
+position:absolute;
+bottom:20px;
+left:10px;
+background:white;
+padding:10px;
+z-index:999;
+border-radius:8px;
+}
+
+#btn {
+position:absolute;
+top:10px;
+left:10px;
+z-index:999;
+padding:10px;
+background:blue;
+color:white;
+border:none;
+border-radius:6px;
+}
+</style>
+</head>
+
+<body>
+
+<button id="btn" onclick="activarGPS()">📍 Activar GPS</button>
+
+<div id="map"></div>
+<div id="info">Presiona el botón para ubicarte</div>
+
+<script>
+
+var map = L.map('map').setView([-0.2, -78.5], 12);
+
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+var capa;
+var marcador = null;
+
+// CARGAR GEOJSON
+fetch('mapa.geojson')
+.then(res => res.json())
+.then(data => {
+    capa = L.geoJSON(data, {
+        style: {color:'blue', weight:2}
+    }).addTo(map);
+});
+
+// GPS
+function activarGPS(){
+
+    if (navigator.geolocation){
+
+        navigator.geolocation.getCurrentPosition(
+
+            function(pos){
+                let lat = pos.coords.latitude;
+                let lon = pos.coords.longitude;
+
+                evaluar(lat, lon);
+            },
+
+            function(){
+                document.getElementById("info").innerHTML = "❌ Permiso denegado";
+            },
+
+            { enableHighAccuracy:true }
+
+        );
+
+    } else {
+        alert("GPS no soportado");
+    }
+}
+
+// DETECTAR POLÍGONO
+function evaluar(lat, lon){
+
+    var punto = turf.point([lon, lat]);
+    var mensaje = "❌ Fuera de polígonos";
+
+    if (marcador){
+        map.removeLayer(marcador);
+    }
+
+    marcador = L.marker([lat, lon]).addTo(map)
+        .bindPopup("📍 Estás aquí")
+        .openPopup();
+
+    map.setView([lat, lon], 15);
+
+    let encontrado = false;
+
+    capa.eachLayer(function(layer){
+
+        try {
+
+            let dentro = turf.booleanPointInPolygon(punto, layer.feature);
+
+            if(dentro && !encontrado){
+
+                let p = layer.feature.properties;
+
+                mensaje =
+                "📍 ZONA: " + p.ZONA +
+                "<br>📍 SECTOR: " + p.SECTOR;
+
+                layer.setStyle({color:'red', weight:5});
+                encontrado = true;
+
+            } else {
+                layer.setStyle({color:'blue', weight:2});
+            }
+
+        } catch(e){
+            console.log("Error:", e);
+        }
+
+    });
+
+    document.getElementById("info").innerHTML = mensaje;
+}
+
+</script>
+
+</body>
+</html>
